@@ -53,7 +53,7 @@ jobs:
             done
             exit 1
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: albw-exefs
           path: client/deploy/
