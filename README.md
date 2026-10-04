@@ -1,1 +1,75 @@
-# A-Link-Between-Wilds
+# A Link Between Wilds
+
+Online co-op for *The Legend of Zelda: Breath of the Wild* on Nintendo Switch. Up to four players, one Hyrule.
+
+> **Status: early development.** The network layer works end to end; hooking the game is the current milestone. Nothing is playable yet.
+
+## How it works
+
+```
+ ┌───────────── Switch / Ryujinx ─────────────┐          ┌──── PC / home server ────┐
+ │ BotW ──hook──> albw module (exlaunch, C++) │ ◄─UDP──► │ albw_server.py (relay)   │ ◄─UDP──► other players
+ └────────────────────────────────────────────┘          └──────────────────────────┘
+```
+
+- **`client/`**: a C++ module injected into the game with [exlaunch](https://github.com/shadowninja108/exlaunch). It reads your player's state every frame and streams it to the server, and receives everyone else's.
+- **`server/`**: a small Python UDP relay. Handles joining, forwards player states, drops players who time out.
+- **`protocol/`**: the packet format, shared by both sides.
+- **`tools/fake_client.py`**: a pretend player that runs in circles, for testing without a second copy of the game.
+
+## Requirements
+
+- Breath of the Wild **v1.6.0**, dumped from your own Switch. This project never includes or links to game files or keys.
+- Ryujinx (or a Switch running Atmosphère, kept offline and on emuMMC)
+- [devkitPro](https://devkitpro.org/wiki/Getting_Started) with devkitA64, to build the module
+- Python 3.10+ for the server
+
+## Quick start
+
+**1. Run the server** on your PC or home server:
+
+```bash
+python3 server/albw_server.py
+```
+
+**2. Build the module:**
+
+```bash
+cd client
+make
+```
+
+This produces `client/deploy/subsdk9` and `client/deploy/main.npdm`. (CI also builds these on every push; grab them from the run's artifacts if you don't have devkitPro set up.)
+
+**3. Install it in Ryujinx:** right-click BotW → *Open Mods Directory*, create a folder (e.g. `albw/exefs/`), and copy both files into `exefs`. Or set `RYU_PATH` in `client/config.mk` and run `make deploy-ryu`.
+
+**4. Launch the game.** About 5 seconds after boot, the server should log `player 0 'Link' joined`. With *Logging → Guest logs* enabled in Ryujinx, the module's `[albw]` messages show up in Ryujinx's log.
+
+**5. Add a second player:**
+
+```bash
+python3 tools/fake_client.py --name Linkle
+```
+
+Until the game offsets are found, the module sends a test pattern (a player walking in a circle), and the fake client prints it.
+
+Server address and player name are set in [`client/source/program/albw_config.hpp`](client/source/program/albw_config.hpp) for now.
+
+## Roadmap
+
+See [docs/roadmap.md](docs/roadmap.md). In short:
+
+1. ✅ Network layer: server, protocol, module joins and streams state
+2. ⏳ Find the player update function and position fields ([guide](docs/finding-offsets.md))
+3. ⬜ Draw other players in the world
+4. ⬜ Animations, then more (enemies, items, world state...)
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Work happens on branches with pull requests into `main`; CI must pass.
+
+## Legal
+
+This is a fan project, not affiliated with or endorsed by Nintendo. You need your own legally obtained copy of the game. Don't use custom firmware online with Nintendo's servers.
+
+Licensed under the [GNU GPL v2](LICENSE), as required by exlaunch.

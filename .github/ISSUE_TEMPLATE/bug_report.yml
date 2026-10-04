@@ -1,0 +1,45 @@
+name: Bug report
+description: Something crashes, desyncs or behaves wrong
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start server
+        2. Launch game, load save at ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit / build
+      description: Output of `git rev-parse --short HEAD`, or the CI run you downloaded.
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Running on
+      options: [Ryujinx, Ryujinx fork, Switch hardware (Atmosphère), Server only]
+    validations:
+      required: true
+  - type: input
+    id: platform_version
+    attributes:
+      label: Emulator / firmware version
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Ryujinx log (with Guest logs enabled, look for [albw] lines) and server output. Crash PC if any.
+      render: text
