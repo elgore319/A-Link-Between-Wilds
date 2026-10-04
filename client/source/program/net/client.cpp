@@ -1,5 +1,6 @@
 #include "client.hpp"
 
+#include "lib.hpp"
 #include <nn/os.hpp>
 #include "nn_socket.hpp"
 #include "program/albw_config.hpp"
