@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Never commit game files or keys
+*.nsp
+*.xci
+*.nca
+*.keys
+prod.keys
+title.keys
