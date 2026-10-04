@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  server:
+    name: Server tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run tests
+        working-directory: server
+        run: python -m unittest -v
+
+  protocol:
+    name: Protocol layout check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile header as C and C++ (static_asserts check packet sizes)
+        run: |
+          echo '#include "albw_protocol.h"' > check.c
+          gcc -std=c11 -Wall -Werror -Iprotocol -c check.c -o /dev/null
+          g++ -std=c++20 -Wall -Werror -Iprotocol -x c++ -c check.c -o /dev/null
+
+  client:
+    name: Switch module build
+    runs-on: ubuntu-latest
+    container: devkitpro/devkita64:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python (used by the exlaunch build scripts)
+        run: |
+          if ! command -v python3 >/dev/null; then
+            apt-get update && apt-get install -y --no-install-recommends python3
+          fi
+      - name: Build
+        working-directory: client
+        run: make -j"$(nproc)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: albw-exefs
+          path: client/deploy/
+          if-no-files-found: error
