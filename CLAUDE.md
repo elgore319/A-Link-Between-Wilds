@@ -2,6 +2,8 @@
 
 Project: A Link Between Wilds, online co-op mod for BotW Switch 1.6.0. Read README.md, CONTRIBUTING.md and docs/decisions/ before making changes.
 
+**Who it's for:** Lee's friends, who can't set up anything complex. Every change must keep (or move toward) a setup where a player runs one installer and types a name and a join code, and a host clicks one launcher. Nothing should need a terminal, hand-edited files or hidden folders in the normal path, and errors must be plain English with a next step. Never bundle, download or share game files, keys or firmware. See docs/decisions/0008-friend-proof-setup.md. When proposing or reviewing a feature, say how a player would use it.
+
 Rules for every change, as the owner (Lee) requires a full paper trail:
 - Work on a branch and open a PR into `main`; never push directly to `main`. Conventional Commit messages.
 - Update CHANGELOG.md, and docs/research/offsets-log.md / docs/decisions/ / docs/protocol.md whenever the change touches those areas.

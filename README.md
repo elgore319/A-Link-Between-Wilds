@@ -4,6 +4,9 @@ Online co-op for *The Legend of Zelda: Breath of the Wild* on Nintendo Switch. U
 
 > **Status: early development.** The network layer works end to end; hooking the game is the current milestone. Nothing is playable yet.
 
+## For players
+Not ready yet. When it is, setup will be: run **ALBW Setup**, type your name and the join code from whoever's hosting, and play. You'll need your own copy of BotW 1.6.0 for Ryujinx; the installer takes care of the rest. (Everything below is for developers until then.)
+
 ## How it works
 
 ```
