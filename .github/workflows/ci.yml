@@ -29,6 +29,18 @@ jobs:
           gcc -std=c11 -Wall -Werror -Iprotocol -c check.c -o /dev/null
           g++ -std=c++20 -Wall -Werror -Iprotocol -x c++ -c check.c -o /dev/null
 
+  client-tests:
+    name: Module unit tests (host)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build and run parser tests (with sanitizers)
+        working-directory: client/tests
+        run: |
+          g++ -std=c++20 -Wall -Wextra -Werror -fsanitize=address,undefined -g \
+              -I../source -I../../protocol test_config_parser.cpp -o test_config_parser
+          ./test_config_parser
+
   client:
     name: Switch module build
     runs-on: ubuntu-latest
