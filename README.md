@@ -68,6 +68,11 @@ See [docs/roadmap.md](docs/roadmap.md). In short:
 3. ⬜ Draw other players in the world
 4. ⬜ Animations, then more (enemies, items, world state...)
 
+## Moving Ryujinx to another of your PCs
+`tools/windows/move-ryujinx.bat` copies your own Ryujinx setup (emulator, keys, firmware, saves, mods and your BotW files) to another PC you own. Double-click it on the old PC: it finds everything and asks where to put the copy (a USB drive formatted exFAT, or a shared folder). Then open the **ALBW Ryujinx Transfer** folder on the new PC and double-click `move-ryujinx.bat` inside it. It installs everything, points Ryujinx at the game and adds a desktop shortcut. Anything already there is renamed, not overwritten.
+
+The transfer folder contains your keys and your game: keep it to yourself, and never put it in this repo (it's in `.gitignore`).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Work happens on branches with pull requests into `main`; CI must pass.
