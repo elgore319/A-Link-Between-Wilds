@@ -26,6 +26,24 @@ namespace albw::game::offsets {
     constexpr uintptr_t PlayerPosZ = 0;   /* float */
     constexpr uintptr_t PlayerRotY = 0;   /* float, radians; optional for now */
 
+    /* ---- Player via the PlayerInfo singleton (no hook needed) ----------------
+     * Chain: [main + PlayerInfoInstance] -> PlayerInfo
+     *        [PlayerInfo + PlayerInfoPlayerActor] -> player Actor
+     *        Actor + ActorMtx -> sead::Matrix34f (translation in column 3)
+     * Status: candidates, not yet verified in-game. Sources and verification
+     * steps: docs/research/decomp-mapping.md; log results in offsets-log.md. */
+
+    /* ksys::act::PlayerInfo::sInstance (1.6.0; 1.5.0 was 0x25CDB60). */
+    constexpr uintptr_t PlayerInfoInstance = 0x2CA1140;
+    /* PlayerInfo::mPlayerActor (PlayerBase*), null when there's no player. */
+    constexpr uintptr_t PlayerInfoPlayerActor = 0x60;
+    /* PlayerInfo::mPlayerPos (Vector3f). Logged for comparison only for now. */
+    constexpr uintptr_t PlayerInfoPlayerPos = 0x88;
+    /* ksys::act::Actor::mMtx (sead::Matrix34f, 0x30 bytes). */
+    constexpr uintptr_t ActorMtx = 0x398;
+
+    inline constexpr bool HavePlayerPointerChain() { return PlayerInfoInstance != 0; }
+
     inline constexpr bool HavePlayerHook() { return PlayerUpdate != 0; }
     inline constexpr bool HavePlayerFields() { return PlayerPosX != 0; }
 }
