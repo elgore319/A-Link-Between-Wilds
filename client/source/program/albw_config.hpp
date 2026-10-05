@@ -3,24 +3,35 @@
 /*
  * A Link Between Wilds - client settings.
  *
- * For now these are compiled in. Edit, rebuild, redeploy. A later step is to read
- * them from a file on the SD card / Ryujinx's sdcard folder so players don't need
- * to build the mod themselves.
+ * Server address, port and player name are read at startup from
+ * sd:/albw/config.ini (see docs/configuration.md). The values here are the
+ * built-in defaults, used when that file is missing or a line in it is invalid.
+ * Everything else in this file is compiled in.
  */
 
 #include "albw_protocol.h"
 
 namespace albw::config {
 
+    /* ---- Defaults, overridable from config.ini ------------------------------ */
+
     /* IPv4 address of the machine running server/albw_server.py.
-       When the server runs on the same PC as Ryujinx, 127.0.0.1 works. */
+       When the server runs on the same PC as Ryujinx, 127.0.0.1 works.
+       config.ini key: server_ip */
     constexpr const char ServerIp[] = "127.0.0.1";
 
-    /* Must match the server's --port. */
+    /* Must match the server's --port. config.ini key: server_port */
     constexpr unsigned short ServerPort = ALBW_DEFAULT_PORT;
 
-    /* Shown to other players. Up to 16 bytes. */
+    /* Shown to other players. Up to 16 bytes. config.ini key: player_name */
     constexpr const char PlayerName[] = "Link";
+
+    /* ---- Build-time only ----------------------------------------------------- */
+
+    /* Read sd:/albw/config.ini at startup. Set to false to build a module that
+       never touches the filesystem (it then also doesn't link against nn::fs),
+       e.g. if MountSdCardForDebug turns out to be missing or blocked. */
+    constexpr bool UseConfigFile = true;
 
     /* How often to send our state, in packets per second. */
     constexpr int SendRateHz = 20;

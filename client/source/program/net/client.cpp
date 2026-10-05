@@ -4,6 +4,7 @@
 #include <nn/os.hpp>
 #include "nn_socket.hpp"
 #include "program/albw_config.hpp"
+#include "program/config/config_file.hpp"
 #include "program/loggers.hpp"
 
 namespace albw::net {
@@ -85,12 +86,13 @@ namespace albw::net {
             return false;
         }
 
+        const config::Settings& cfg = config::Get();
         sockaddr_in addr = {};
         addr.sin_len = sizeof(addr);
         addr.sin_family = AfInet;
-        addr.sin_port = nn::socket::InetHtons(config::ServerPort);
-        if (nn::socket::InetAton(config::ServerIp, &addr.sin_addr) == 0) {
-            Logging.Log("[albw] bad server IP '%s'", config::ServerIp);
+        addr.sin_port = nn::socket::InetHtons(cfg.server_port);
+        if (nn::socket::InetAton(cfg.server_ip, &addr.sin_addr) == 0) {
+            Logging.Log("[albw] bad server IP '%s'", cfg.server_ip);
             return false;
         }
 
@@ -100,7 +102,7 @@ namespace albw::net {
             Logging.Log("[albw] Connect() failed, errno %d", nn::socket::GetLastErrno());
             return false;
         }
-        Logging.Log("[albw] socket ready, server %s:%d", config::ServerIp, config::ServerPort);
+        Logging.Log("[albw] socket ready, server %s:%d", cfg.server_ip, cfg.server_port);
         return true;
     }
 
@@ -110,7 +112,7 @@ namespace albw::net {
 
     void Client::Join() {
         albw_hello hello = {};
-        CopyName(hello.name, config::PlayerName, ALBW_NAME_LEN);
+        CopyName(hello.name, config::Get().player_name, ALBW_NAME_LEN);
 
         int attempts = 0;
         while (m_status.load() == Status::Connecting) {
@@ -238,6 +240,10 @@ namespace albw::net {
     void Client::Run() {
         /* Give the game a few seconds to finish booting before we touch the network. */
         Sleep(5000);
+
+        /* Read config.ini here rather than in exl_main: the filesystem is certainly
+           up by now, and a slow SD card can't stall the game's boot. */
+        config::Load();
 
         if (!OpenSocket()) {
             m_status = Status::Error;
