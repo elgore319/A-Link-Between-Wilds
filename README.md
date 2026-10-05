@@ -20,7 +20,7 @@ Online co-op for *The Legend of Zelda: Breath of the Wild* on Nintendo Switch. U
 ## Requirements
 
 - Breath of the Wild **v1.6.0**, dumped from your own Switch. This project never includes or links to game files or keys.
-- Ryujinx (or a Switch running Atmosphère, kept offline and on emuMMC)
+- Ryujinx (or a Switch running Atmosphère, kept offline and on emuMMC). Official downloads are gone; see [Installing Ryujinx](docs/installing-ryujinx.md) for our installer and for moving your setup to another PC.
 - [devkitPro](https://devkitpro.org/wiki/Getting_Started) with devkitA64, to build the module
 - Python 3.10+ for the server
 
