@@ -2,7 +2,7 @@
 
 Online co-op for *The Legend of Zelda: Breath of the Wild* on Nintendo Switch. Up to four players, one Hyrule.
 
-> **Status: early development.** The network layer works end to end; hooking the game is the current milestone. Nothing is playable yet.
+> **Status: early development.** The network layer works end to end, and the module now reads your real position (offsets from the community decomp, not yet verified in-game). Other players aren't drawn yet, so nothing is playable.
 
 ## How it works
 
@@ -55,7 +55,7 @@ This produces `client/deploy/subsdk9` and `client/deploy/main.npdm`. (CI also bu
 python3 tools/fake_client.py --name Linkle
 ```
 
-Until the game offsets are found, the module sends a test pattern (a player walking in a circle), and the fake client prints it.
+The fake client prints the position the module sends. Walk around and the numbers should follow you. (If the offsets turn out wrong, set `ReadPlayerFromMemory = false` in `albw_config.hpp` to get the old circle-walking test pattern back.)
 
 Server address and player name come from `albw/config.ini` on the SD card (Ryujinx: the `sdcard` folder in its data folder). Copy [`client/sdcard/albw/config.ini`](client/sdcard/albw/config.ini) there and edit it; without it the module uses `127.0.0.1` and `Link`. See [docs/configuration.md](docs/configuration.md).
 

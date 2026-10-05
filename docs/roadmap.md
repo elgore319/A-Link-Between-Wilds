@@ -10,8 +10,8 @@ Milestones are tracked as GitHub issues/milestones; this file is the overview. U
 - [ ] Confirm the module loads in Ryujinx and joins the server
 
 ## M2: Real player data
-- [ ] Find per-frame player function and position/rotation fields ([guide](finding-offsets.md))
-- [ ] Module sends real position
+- [x] Find position/rotation: `PlayerInfo` pointer chain from the decomp, no per-frame function needed ([research](research/decomp-mapping.md), [decision 0007](decisions/0007-read-player-via-playerinfo.md)); **awaiting in-game verification**
+- [x] Module sends real position (awaiting in-game test)
 - [x] Read server address/name from a config file instead of compiling them in ([configuration](configuration.md); awaiting in-game test)
 
 ## M3: See each other

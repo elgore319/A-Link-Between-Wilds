@@ -27,5 +27,5 @@ Entry template:
 - Status: 🔍 candidate
 - How found: struct layout from the decomp (1.5.0, size check 0x3B0 matches); 1.6.0 global from Pistonight/botw-symbols `listing_160.csv` (`e5f3b54`); the full chain `[main+0x2CA1140]+0x60 → +0x398` is used as the "main position matrix" by Pistonight/botw-save-state (`cff5bf2`), a working 1.6.0 mod. Full write-up: [decomp-mapping.md](decomp-mapping.md).
 - Verified by: not yet. Steps in decomp-mapping.md, "How to verify in-game".
-- Notes: 1.5.0 address of the global is main+0x25CDB60 (decomp `data_symbols.csv`). Reading this from the network thread would replace the planned player-update hook; needs a decision record (supersedes part of 0004) when implemented. Watch for a stale `mPlayerActor` during loads.
+- Notes: **In code since the feature/player-position PR** (`game_offsets.hpp`, decision 0007) but still unverified. The module logs `[albw] player pos (...) | PlayerInfo pos (...)` every 5 s; compare it with Cheat Engine or with where Link is. 1.5.0 address of the global is main+0x25CDB60 (decomp `data_symbols.csv`). Reading this from the network thread would replace the planned player-update hook; needs a decision record (supersedes part of 0004) when implemented. Watch for a stale `mPlayerActor` during loads.
 
