@@ -2,6 +2,8 @@
 
 Goal for milestone 2: fill in [`game_offsets.hpp`](../client/source/program/game/game_offsets.hpp) so the module sends your real position instead of the test pattern.
 
+> **Start here:** [research/decomp-mapping.md](research/decomp-mapping.md) has strong 1.6.0 candidates for the player's position from the community decomp and other 1.6.0 mods, and they may not need a hook at all. Verify those first (§ "How to verify in-game"). The steps below are for when they don't pan out, or for finding things nobody has mapped yet.
+
 **Record everything you find in [`research/offsets-log.md`](research/offsets-log.md)**, including dead ends. That log is how we re-find things after mistakes and how anyone else picks up the work.
 
 ## Tools
