@@ -26,6 +26,10 @@ Online co-op for *The Legend of Zelda: Breath of the Wild* on Nintendo Switch. U
 
 ## Quick start
 
+**On Windows, the fast way:** download the `albw-exefs` artifact from the latest CI run into Downloads, then double-click `tools\windows\test-m1.bat`. It installs the module into Ryujinx, turns on guest logs, starts the server, watches the logs while you launch the game, and writes a pass/fail report to `docs/test-reports/`. Run `test-m1.ps1 -?` for options (including launching the game automatically).
+
+The manual steps:
+
 **1. Run the server** on your PC or home server:
 
 ```bash
