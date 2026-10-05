@@ -20,7 +20,7 @@ This project is reverse engineering-heavy, so undocumented knowledge gets lost. 
 ## Layout
 | Path | What |
 |---|---|
-| `client/` | Switch module. Our code is in `client/source/program/`; the rest is vendored exlaunch (see `client/EXLAUNCH.md`) and shouldn't be edited except to update it. |
+| `client/` | Switch module. Our code is in `client/source/program/` (host tests in `client/tests/`, example SD card files in `client/sdcard/`); the rest is vendored exlaunch (see `client/EXLAUNCH.md`) and shouldn't be edited except to update it. |
 | `server/` | Python relay server and tests |
 | `protocol/` | Packet definitions shared with the client |
 | `tools/` | Dev utilities |
@@ -29,6 +29,10 @@ This project is reverse engineering-heavy, so undocumented knowledge gets lost. 
 ## Running tests
 ```bash
 cd server && python3 -m unittest -v
+
+# Module code that doesn't depend on the Switch SDK (currently the config parser):
+cd client/tests
+g++ -std=c++20 -Wall -Wextra -Werror -I../source -I../../protocol test_config_parser.cpp -o test_config_parser && ./test_config_parser
 ```
 
 ## Never commit

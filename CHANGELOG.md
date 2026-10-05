@@ -5,6 +5,8 @@ All notable changes to this project. Format based on [Keep a Changelog](https://
 ## [Unreleased]
 
 ### Added
+- Module reads server IP, port and player name from `sd:/albw/config.ini` at startup, falling back to the compiled-in defaults per setting; example file in `client/sdcard/albw/`, docs in `docs/configuration.md`, decision 0006. Can be compiled out with `UseConfigFile = false`.
+- Host-side unit tests for the config parser (`client/tests/`), run in CI with sanitizers.
 - Wire protocol v1 shared between client and server (`protocol/albw_protocol.h`, `server/protocol.py`).
 - UDP relay server with join/reject, state relay, stale-packet dropping, ping/pong, timeouts and 14 tests.
 - `tools/fake_client.py` test player.

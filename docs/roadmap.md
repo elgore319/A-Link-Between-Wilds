@@ -12,7 +12,7 @@ Milestones are tracked as GitHub issues/milestones; this file is the overview. U
 ## M2: Real player data
 - [ ] Find per-frame player function and position/rotation fields ([guide](finding-offsets.md))
 - [ ] Module sends real position
-- [ ] Read server address/name from a config file instead of compiling them in
+- [x] Read server address/name from a config file instead of compiling them in ([configuration](configuration.md); awaiting in-game test)
 
 ## M3: See each other
 - [ ] Spawn a stand-in actor for each remote player
