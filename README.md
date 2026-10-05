@@ -53,7 +53,7 @@ python3 tools/fake_client.py --name Linkle
 
 Until the game offsets are found, the module sends a test pattern (a player walking in a circle), and the fake client prints it.
 
-Server address and player name are set in [`client/source/program/albw_config.hpp`](client/source/program/albw_config.hpp) for now.
+Server address and player name come from `albw/config.ini` on the SD card (Ryujinx: the `sdcard` folder in its data folder). Copy [`client/sdcard/albw/config.ini`](client/sdcard/albw/config.ini) there and edit it; without it the module uses `127.0.0.1` and `Link`. See [docs/configuration.md](docs/configuration.md).
 
 ## Roadmap
 

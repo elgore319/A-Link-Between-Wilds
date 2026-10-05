@@ -12,3 +12,4 @@ Every significant technical choice gets a short record here: what we decided, wh
 | [0003](0003-udp-relay-server.md) | Dumb UDP relay server in Python | Accepted |
 | [0004](0004-network-thread-and-inline-hooks.md) | Network on its own thread; read-only inline hooks | Accepted |
 | [0005](0005-gpl-v2-license.md) | GPLv2 for the whole repo | Accepted |
+| [0006](0006-config-file-on-sd-card.md) | Player settings from an INI file on the SD card | Accepted |
