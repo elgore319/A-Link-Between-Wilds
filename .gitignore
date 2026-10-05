@@ -16,3 +16,6 @@ Thumbs.db
 *.keys
 prod.keys
 title.keys
+
+# Ryujinx transfer folders from tools/windows/move-ryujinx.bat contain keys and game files
+ALBW Ryujinx Transfer/
