@@ -1,5 +1,8 @@
 # Contributing
 
+## Who we build for
+Players are people who've never modded a game. The goal is **one installer, a name and a join code** for players, and **one click** for the host ([decision 0008](docs/decisions/0008-friend-proof-setup.md)). For every change, ask: *how does a player use this without a terminal, a text editor or a hidden folder?* If the answer is "they don't, yet", say so in the PR.
+
 ## Workflow
 1. **Open or pick an issue** describing the change.
 2. **Branch from `main`**: `feature/<short-name>`, `fix/<short-name>`, `docs/<short-name>` or `research/<short-name>`.
