@@ -1,0 +1,67 @@
+name: Ryujinx installer
+
+# Builds tools/windows/ryujinx-installer into ryujinx-<version>-setup.exe.
+# Ryujinx binaries aren't in git (see docs/decisions/0007), so this runs on demand with a
+# link to an unmodified Ryujinx zip (e.g. a release asset on this repo) and its SHA-256.
+# On every PR that touches the installer it also checks the script compiles, using a stub.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ryujinx_zip_url:
+        description: URL of an unmodified Ryujinx win-x64 zip
+        required: true
+      ryujinx_zip_sha256:
+        description: Expected SHA-256 of that zip
+        required: true
+  pull_request:
+    paths:
+      - tools/windows/ryujinx-installer/**
+      - .github/workflows/ryujinx-installer.yml
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Inno Setup if missing
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ISCC.exe -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Get Ryujinx (real build)
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        env:
+          ZIP_URL: ${{ inputs.ryujinx_zip_url }}
+        run: Invoke-WebRequest -Uri $env:ZIP_URL -OutFile ryujinx.zip
+
+      - name: Make a stub Ryujinx (compile check only)
+        if: github.event_name != 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory stub | Out-Null
+          Copy-Item "$env:WINDIR\System32\notepad.exe" stub\Ryujinx.exe
+          Set-Content stub\LICENSE.txt 'stub'
+
+      - name: Build installer
+        shell: pwsh
+        env:
+          ZIP_SHA256: ${{ inputs.ryujinx_zip_sha256 }}
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            ./tools/windows/ryujinx-installer/build.ps1 -Ryujinx ryujinx.zip -Sha256 $env:ZIP_SHA256
+          } else {
+            ./tools/windows/ryujinx-installer/build.ps1 -Ryujinx stub -Version 0.0.0
+          }
+
+      - uses: actions/upload-artifact@v5
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: ryujinx-installer
+          path: tools/windows/ryujinx-installer/build/*-setup.exe
+          if-no-files-found: error
