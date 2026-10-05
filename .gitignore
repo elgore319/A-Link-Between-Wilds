@@ -16,3 +16,9 @@ Thumbs.db
 *.keys
 prod.keys
 title.keys
+
+# Ryujinx installer: build output, Ryujinx binaries, and personal transfer zips (contain keys)
+tools/windows/ryujinx-installer/build/
+*-setup.exe
+ryujinx-*-win_x64.zip
+ryujinx-transfer-*.zip
