@@ -193,6 +193,7 @@ function Read-Shared([string]$path) {
 }
 
 Write-Step "Watching logs for up to $WaitSeconds s (Ctrl+C to stop early)"
+Write-Host '    Load a save once the module has joined, so the position read can be checked too.'
 $deadline = (Get-Date).AddSeconds($WaitSeconds)
 $ryuLog = $null; $albwLines = @(); $problemLines = @(); $serverText = ''
 while ((Get-Date) -lt $deadline) {
@@ -203,7 +204,10 @@ while ((Get-Date) -lt $deadline) {
         $problemLines = @($lines | Where-Object { $_ -match '(?i)unresolved|subsdk9|albw.*(abort|fail)|Unhandled exception|InvalidAccess' } | Select-Object -First 40)
     }
     if (Test-Path $serverLog) { $serverText = Read-Shared $serverLog }
-    if (($albwLines -match 'joined as player') -or ($serverText -match 'joined from')) { Start-Sleep -Seconds 5; break }
+    $hasJoined = ($albwLines -match 'joined as player') -or ($serverText -match 'joined from')
+    # Keep watching after the join until the module also finds the player in memory
+    # (load a save to get there), or the time runs out.
+    if ($hasJoined -and ($albwLines -match 'player pos \(')) { break }
     Start-Sleep -Seconds 3
 }
 if (Test-Path $serverLog) { $serverText = Read-Shared $serverLog }
@@ -215,6 +219,9 @@ $checks = [ordered]@{
     'HELLO sent'              = [bool]($albwLines -match 'sent HELLO')
     'Joined (module log)'     = [bool]($albwLines -match 'joined as player')
     'Joined (server log)'     = [bool]($serverText -match 'joined from')
+    # M2 (decision 0007): informational, doesn't affect the verdict. Load a save within
+    # -WaitSeconds for this to be yes; the 'player pos' lines in the report show what was read.
+    'Player found in memory'  = [bool]($albwLines -match 'player in world')
 }
 $joined = $checks['Joined (module log)'] -or $checks['Joined (server log)']
 if ($joined) {
