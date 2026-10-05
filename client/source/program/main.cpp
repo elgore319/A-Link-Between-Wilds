@@ -1,10 +1,10 @@
 /*
  * A Link Between Wilds - Switch module entry point.
  *
- * Loaded into Breath of the Wild by exlaunch (as subsdk9). Current milestone:
- *   1. Start the network thread and join the server.            <- works without offsets
- *   2. Hook the player's per-frame update and send real position. <- needs game_offsets.hpp
- *   3. Draw the other players.                                  <- next milestone
+ * Loaded into Breath of the Wild by exlaunch (as subsdk9). Milestones:
+ *   1. Start the network thread and join the server.              <- done
+ *   2. Send our real position, read via the PlayerInfo pointer chain. <- awaiting in-game test
+ *   3. Draw the other players.                                    <- next
  */
 #include "lib.hpp"
 #include "program/loggers.hpp"
@@ -59,7 +59,15 @@ extern "C" void exl_main(void* x0, void* x1) {
 
     auto& client = albw::net::GetClient();
 
-    if constexpr (albw::game::offsets::HavePlayerHook()) {
+    /* Where our player's state comes from, in order of preference (decision 0007):
+       1. reading the PlayerInfo pointer chain from the network thread,
+       2. an inline hook on a per-frame player function (kept for later, e.g. if
+          reads need to be synchronized with the game thread),
+       3. a generated test pattern. */
+    if constexpr (albw::config::ReadPlayerFromMemory && albw::game::offsets::HavePlayerPointerChain()) {
+        Logging.Log("[albw] reading player from PlayerInfo (main+0x%lx)", albw::game::offsets::PlayerInfoInstance);
+        client.EnablePlayerReader();
+    } else if constexpr (albw::game::offsets::HavePlayerHook()) {
         PlayerUpdateHook::InstallAtOffset(albw::game::offsets::PlayerUpdate);
         Logging.Log("[albw] player hook installed at main+0x%lx", albw::game::offsets::PlayerUpdate);
     } else if constexpr (albw::config::SendTestPatternWithoutOffsets) {
