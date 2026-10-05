@@ -51,6 +51,10 @@ namespace albw::net {
                in a circle so the whole network path can be tested. */
             void EnableTestPattern() { m_test_pattern = true; }
 
+            /* Read the local player from game memory on the network thread
+               (game/player_reader.hpp) instead of waiting for SetLocalState(). */
+            void EnablePlayerReader() { m_player_reader = true; }
+
         private:
             static void ThreadEntry(void* arg);
             void Run();
@@ -62,6 +66,8 @@ namespace albw::net {
             void SendState();
             void SendPacket(const void* data, size_t size);
             void StepTestPattern();
+            void StepPlayerReader();
+            void ClearLocalState();
 
             void Lock();
             void Unlock();
@@ -73,6 +79,9 @@ namespace albw::net {
             bool  m_test_pattern = false;
             float m_test_dir[2] = { 5.0f, 0.0f };
             u32   m_test_tick = 0;
+            bool  m_player_reader = false;
+            bool  m_player_present = false;
+            u32   m_reader_tick = 0;
 
             /* Shared between threads, guarded by m_lock. */
             std::atomic_flag m_lock = ATOMIC_FLAG_INIT;

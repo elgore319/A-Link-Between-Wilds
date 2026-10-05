@@ -36,6 +36,11 @@ namespace albw::config {
     /* How often to send our state, in packets per second. */
     constexpr int SendRateHz = 20;
 
+    /* Read the player's position from game memory via the PlayerInfo pointer
+       chain (game_offsets.hpp, decision 0007). Set to false to go back to the
+       test pattern if the chain turns out to be wrong. */
+    constexpr bool ReadPlayerFromMemory = true;
+
     /* While game offsets aren't filled in yet (see game_offsets.hpp), send a fake
        player walking in a circle so the network path can be tested end to end. */
     constexpr bool SendTestPatternWithoutOffsets = true;

@@ -58,7 +58,7 @@ This also matches what [finding-offsets.md](../finding-offsets.md) predicted: X/
 
 Two independent projects agree with the decomp's layout on 1.6.0, so the struct offsets apparently didn't change between versions. The global's address did, as expected.
 
-### Proposal: read it from a pointer, not a hook
+### Read it from a pointer, not a hook (implemented: [decision 0007](../decisions/0007-read-player-via-playerinfo.md))
 With these values the module can get the player's position without hooking any function:
 
 ```

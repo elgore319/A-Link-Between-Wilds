@@ -1,7 +1,7 @@
 # 0004. Network on its own thread; read-only inline hooks
 
 - **Date:** 2026-10-04
-- **Status:** Accepted
+- **Status:** Accepted; the per-frame player hook is partly superseded by [0007](0007-read-player-via-playerinfo.md)
 
 ## Context
 BotW runs close to its frame budget on Switch. Network calls can stall, and a badly written hook can crash the game or corrupt its state.

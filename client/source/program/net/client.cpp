@@ -5,6 +5,7 @@
 #include "nn_socket.hpp"
 #include "program/albw_config.hpp"
 #include "program/config/config_file.hpp"
+#include "program/game/player_reader.hpp"
 #include "program/loggers.hpp"
 
 namespace albw::net {
@@ -62,6 +63,12 @@ namespace albw::net {
         m_rot_y = rot_y;
         m_game_tick = game_tick;
         m_have_local = true;
+        Unlock();
+    }
+
+    void Client::ClearLocalState() {
+        Lock();
+        m_have_local = false;
         Unlock();
     }
 
@@ -237,6 +244,50 @@ namespace albw::net {
         SetLocalState(pos, 0.0f, ++m_test_tick);
     }
 
+    void Client::StepPlayerReader() {
+        m_reader_tick++;
+        game::PlayerSample sample;
+        bool present = game::ReadPlayer(sample);
+
+        if (present != m_player_present) {
+            m_player_present = present;
+            if (present) {
+                Logging.Log("[albw] player in world at (%.1f, %.1f, %.1f)", sample.pos[0], sample.pos[1], sample.pos[2]);
+            } else {
+                Logging.Log("[albw] player not in world, pausing state updates");
+            }
+        }
+
+        if (!present) {
+            /* Stop sending until the player is back (title screen, loading). The ping
+               keeps us joined, so other players just see us stand still. */
+            ClearLocalState();
+            return;
+        }
+
+        /* Set the previous position to the current one on the first sample after a
+           gap, so the velocity sent with it isn't a huge jump. */
+        Lock();
+        bool had_local = m_have_local;
+        Unlock();
+        if (!had_local) {
+            Lock();
+            for (int i = 0; i < 3; i++) m_prev_pos[i] = sample.pos[i];
+            Unlock();
+        }
+        SetLocalState(sample.pos, sample.yaw, m_reader_tick);
+
+        /* Every 5 s, log what we read, plus PlayerInfo::mPlayerPos for comparison,
+           so the offsets can be checked from the Ryujinx log alone. */
+        if (m_reader_tick % (config::SendRateHz * 5) == 0) {
+            float info_pos[3] = {};
+            bool have_info = game::ReadPlayerInfoPos(info_pos);
+            Logging.Log("[albw] player pos (%.2f, %.2f, %.2f) yaw %.3f | PlayerInfo pos %s(%.2f, %.2f, %.2f)",
+                        sample.pos[0], sample.pos[1], sample.pos[2], sample.yaw,
+                        have_info ? "" : "unreadable ", info_pos[0], info_pos[1], info_pos[2]);
+        }
+    }
+
     void Client::Run() {
         /* Give the game a few seconds to finish booting before we touch the network. */
         Sleep(5000);
@@ -258,7 +309,9 @@ namespace albw::net {
         int ticks_since_ping = 0;
         while (true) {
             Pump();
-            if (m_test_pattern)
+            if (m_player_reader)
+                StepPlayerReader();
+            else if (m_test_pattern)
                 StepTestPattern();
             SendState();
 

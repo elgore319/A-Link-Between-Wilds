@@ -30,9 +30,9 @@ This project is reverse engineering-heavy, so undocumented knowledge gets lost. 
 ```bash
 cd server && python3 -m unittest -v
 
-# Module code that doesn't depend on the Switch SDK (currently the config parser):
+# Module code that doesn't depend on the Switch SDK (config parser, player matrix maths):
 cd client/tests
-g++ -std=c++20 -Wall -Wextra -Werror -I../source -I../../protocol test_config_parser.cpp -o test_config_parser && ./test_config_parser
+for t in test_*.cpp; do g++ -std=c++20 -Wall -Wextra -Werror -I../source -I../../protocol "$t" -o "${t%.cpp}" && "./${t%.cpp}" || break; done
 ```
 
 ## Never commit
