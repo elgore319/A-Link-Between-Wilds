@@ -10,6 +10,7 @@
 #include "program/loggers.hpp"
 #include "program/albw_config.hpp"
 #include "program/game/game_offsets.hpp"
+#include "program/game/game_version.hpp"
 #include "program/net/client.hpp"
 
 namespace {
@@ -59,11 +60,17 @@ extern "C" void exl_main(void* x0, void* x1) {
 
     auto& client = albw::net::GetClient();
 
-    if constexpr (albw::game::offsets::HavePlayerHook()) {
+    /* Offsets are for 1.0.0 only. On any other build, hook and read nothing and
+       fall back to the test pattern, so the network path can still be tested. */
+    albw::game::DetectGameVersion();
+    const bool supported = albw::game::IsSupportedGame();
+
+    if (supported && albw::game::offsets::HavePlayerHook()) {
         PlayerUpdateHook::InstallAtOffset(albw::game::offsets::PlayerUpdate);
         Logging.Log("[albw] player hook installed at main+0x%lx", albw::game::offsets::PlayerUpdate);
     } else if constexpr (albw::config::SendTestPatternWithoutOffsets) {
-        Logging.Log("[albw] no player offsets yet, sending test pattern");
+        Logging.Log(supported ? "[albw] no player offsets yet, sending test pattern"
+                              : "[albw] unsupported game version, sending test pattern");
         client.EnableTestPattern();
     }
 

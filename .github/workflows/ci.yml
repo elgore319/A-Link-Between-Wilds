@@ -34,12 +34,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Build and run parser tests (with sanitizers)
+      - name: Build and run host tests (with sanitizers)
         working-directory: client/tests
         run: |
           g++ -std=c++20 -Wall -Wextra -Werror -fsanitize=address,undefined -g \
               -I../source -I../../protocol test_config_parser.cpp -o test_config_parser
           ./test_config_parser
+          g++ -std=c++20 -Wall -Wextra -Werror -fsanitize=address,undefined -g \
+              -I../source test_build_id.cpp -o test_build_id
+          ./test_build_id
 
   client:
     name: Switch module build

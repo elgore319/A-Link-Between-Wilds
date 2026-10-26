@@ -1,7 +1,7 @@
 # 0002. Target BotW 1.6.0 only
 
 - **Date:** 2026-10-04
-- **Status:** Accepted
+- **Status:** Superseded by [0009](0009-target-botw-1-0-0.md)
 
 ## Context
 Every game update moves functions and data, so every offset is version-specific. Supporting several versions multiplies the reverse engineering work.

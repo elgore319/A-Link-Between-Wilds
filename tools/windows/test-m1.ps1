@@ -194,19 +194,31 @@ function Read-Shared([string]$path) {
 
 Write-Step "Watching logs for up to $WaitSeconds s (Ctrl+C to stop early)"
 $deadline = (Get-Date).AddSeconds($WaitSeconds)
-$ryuLog = $null; $albwLines = @(); $problemLines = @(); $serverText = ''
+$ryuLog = $null; $albwLines = @(); $problemLines = @(); $serverText = ''; $appLine = ''
 while ((Get-Date) -lt $deadline) {
     $ryuLog = Get-RyujinxLog
     if ($ryuLog) {
         $lines = (Read-Shared $ryuLog.FullName) -split "`r?`n"
         $albwLines    = @($lines | Where-Object { $_ -match '\[albw' })
         $problemLines = @($lines | Where-Object { $_ -match '(?i)unresolved|subsdk9|albw.*(abort|fail)|Unhandled exception|InvalidAccess' } | Select-Object -First 40)
+        # Ryujinx names the game and its version when it starts it, e.g. "Application Loaded: ... v1.0.0 [01007EF00011E000]".
+        $appLine = @($lines | Where-Object { $_ -match '(?i)Application Loaded' } | Select-Object -Last 1) -join ''
     }
     if (Test-Path $serverLog) { $serverText = Read-Shared $serverLog }
     if (($albwLines -match 'joined as player') -or ($serverText -match 'joined from')) { Start-Sleep -Seconds 5; break }
     Start-Sleep -Seconds 3
 }
 if (Test-Path $serverLog) { $serverText = Read-Shared $serverLog }
+
+# --- game version ----------------------------------------------------------------
+# The mod only supports BotW 1.0.0 with no update (docs/decisions/0009). Ryujinx's own
+# line says what it ran; the module's line says what build ID it found in memory.
+$ryuVersion = if ($appLine -match '\bv(\d+\.\d+\.\d+)') { $Matches[1] } else { 'unknown' }
+$modVersionLine = @($albwLines | Where-Object { $_ -match 'game (version|build id)' } | Select-Object -First 1) -join ''
+$modVersionOk = $modVersionLine -match 'version 1\.0\.0 .*supported' -and $modVersionLine -notmatch 'NOT supported'
+if ($ryuVersion -ne 'unknown' -and $ryuVersion -ne '1.0.0') {
+    Write-Warn "Ryujinx ran BotW v$ryuVersion. This mod needs v1.0.0: right-click BotW > Manage Title Updates > No Update."
+}
 
 # --- verdict -------------------------------------------------------------------
 $checks = [ordered]@{
@@ -215,10 +227,14 @@ $checks = [ordered]@{
     'HELLO sent'              = [bool]($albwLines -match 'sent HELLO')
     'Joined (module log)'     = [bool]($albwLines -match 'joined as player')
     'Joined (server log)'     = [bool]($serverText -match 'joined from')
+    'Game is 1.0.0 (module)'  = [bool]$modVersionOk
 }
 $joined = $checks['Joined (module log)'] -or $checks['Joined (server log)']
 if ($joined) {
     $verdict = 'PASS: the module loaded and joined the server.'
+    if (-not $modVersionOk) {
+        $verdict += " But the module did not confirm BotW 1.0.0 (Ryujinx ran v$ryuVersion), so it won't read the game; remove the update in Ryujinx and rerun."
+    }
 } elseif ($checks['HELLO sent']) {
     $verdict = 'PARTIAL: module is sending HELLO but never joined. Check the server is running, the IP/port in albw_config.hpp, and the firewall.'
 } elseif ($checks['Module loaded']) {
@@ -253,6 +269,8 @@ $(($checks.GetEnumerator() | ForEach-Object { "| $($_.Key) | $(if ($_.Value) { '
 - Guest logs: $guestLogNote
 - Ryujinx log: ``$(if ($ryuLog) { $ryuLog.Name } else { 'none found' })``
 - Server: $(if ($NoServer) { 'not started by script' } else { "port $Port" })
+- Game version (Ryujinx): $ryuVersion
+- Game version (module): $(if ($modVersionLine) { "``$($modVersionLine.Trim())``" } else { 'no line logged' })
 
 ## [albw] lines from Ryujinx
 $fence

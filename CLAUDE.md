@@ -1,6 +1,6 @@
 # Notes for Claude
 
-Project: A Link Between Wilds, online co-op mod for BotW Switch 1.6.0. Read README.md, CONTRIBUTING.md and docs/decisions/ before making changes.
+Project: A Link Between Wilds, online co-op mod for BotW Switch 1.0.0 (the base game, no update; see docs/decisions/0009). Read README.md, CONTRIBUTING.md and docs/decisions/ before making changes.
 
 Rules for every change, as the owner (Lee) requires a full paper trail:
 - Work on a branch and open a PR into `main`; never push directly to `main`. Conventional Commit messages.
