@@ -16,5 +16,5 @@ Server address, port and player name were compile-time constants in `albw_config
 
 ## Consequences
 - Players can change server/name without building. Build-only settings (send rate, test pattern) stay compiled in.
-- **Unverified:** that BotW 1.6.0's SDK module exports `MountSdCardForDebug` and that the call succeeds on Ryujinx and under our `main.npdm` filesystem permissions on real hardware. If it fails, the module logs it and uses defaults; if the symbol is missing entirely, the module may fail to load, and `UseConfigFile = false` is the workaround until we switch to a different mount call. Record the result of the first in-game test in `docs/test-reports/` (added in PR #2).
+- **Unverified:** that BotW's SDK module (1.6.0 when this was written; 1.0.0 since [0009](0009-target-botw-1-0-0.md), an older SDK) exports `MountSdCardForDebug` and that the call succeeds on Ryujinx and under our `main.npdm` filesystem permissions on real hardware. If it fails, the module logs it and uses defaults; if the symbol is missing entirely, the module may fail to load, and `UseConfigFile = false` is the workaround until we switch to a different mount call. Record the result of the first in-game test in `docs/test-reports/` (added in PR #2).
 - Hostnames aren't supported (would need DNS via `sfdnsres`); revisit if people want to share a domain instead of an IP.
