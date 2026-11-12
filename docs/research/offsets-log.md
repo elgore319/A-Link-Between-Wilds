@@ -17,6 +17,13 @@ Entry template:
 
 ---
 
+## 2026-11-12: in-game scan for the 1.0.0 player pointer
+- Value (1.0.0): pending. The scan logs `[albw] scan RESULT: PlayerInfoInstance=0x... PlayerInfoPlayerActor=0x... ActorMtx=0x... PlayerInfoPlayerPos=...`.
+- Status: 🔍 tool ready, not yet run
+- How found: `client/source/program/game/player_scan.hpp` ([decision 0010](../decisions/0010-in-game-player-scan.md)). Searches main's writable data for global → object `+0x60` → actor `+0x398` transform (plus the `+0x88` copy). Falls back to nearby offsets if that fails. Picks the chain that moves 50+ units while you run.
+- Verified by: not yet. Run `tools/windows/find-link.bat`; the report lands in `docs/test-reports/`. Then put the values in `game_offsets.hpp` and check them with [decomp-mapping.md](decomp-mapping.md)'s "How to verify in-game".
+- Notes: `kind=exact+copy` means 1.0.0 uses 1.6.0's field offsets, so only the global moved. `shifted` means the fields moved too. `travel` is how far the chain moved during the scan.
+
 ## 2026-10-26: what 1.0.0 needs for M2
 - Value (1.0.0): `PlayerInfo::sInstance` unknown; `PlayerInfo::mPlayerActor` +0x60 and `Actor::mMtx` +0x398 assumed from 1.5.0/1.6.0.
 - Status: 🔍 candidate (fields), unknown (global)

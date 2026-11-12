@@ -12,7 +12,7 @@ Milestones are tracked as GitHub issues/milestones; this file is the overview. U
 ## M2: Real player data
 - [x] Detect the game build at startup and only touch game memory on 1.0.0 ([decision 0009](decisions/0009-target-botw-1-0-0.md))
 - [ ] Find the 1.0.0 offsets: the 1.6.0 research doesn't carry over ([what's needed](research/offsets-log.md))
-- [ ] Module-side scan that finds `PlayerInfo::sInstance` on 1.0.0 by itself (look through main's data for a pointer whose `+0x60` actor has a sane matrix at `+0x398`, log candidates), so no Ghidra is needed
+- [x] Module-side scan that finds `PlayerInfo::sInstance` on 1.0.0 by itself ([decision 0010](decisions/0010-in-game-player-scan.md); awaiting an in-game run with `find-link.bat`)
 - [ ] Find per-frame player function and position/rotation fields ([guide](finding-offsets.md))
 - [ ] Module sends real position
 - [x] Read server address/name from a config file instead of compiling them in ([configuration](configuration.md); awaiting in-game test)

@@ -40,9 +40,11 @@ Our target is 1.0.0 ([decision 0009](decisions/0009-target-botw-1-0-0.md)), but 
 | `PlayerInfo::mPlayerActor` (field) | `+0x60` | probably `+0x60`, to confirm |
 | `Actor::mMtx` (field), so X/Y/Z at `+0x3A4/+0x3B4/+0x3C4` | `+0x398` | probably `+0x398`, to confirm: 1.0.0 predates the DLC, which may have added actor fields |
 
-**Static (Ghidra).** In Ryujinx, right-click BotW > *Extract Data* > *ExeFS* and save it to a folder **outside this repo** (it's game code; never commit or upload it). Load `main` in Ghidra and use the method at the end of [decomp-mapping.md](research/decomp-mapping.md#finding-a-decomp-function-in-160), which works for any version: string references, neighbouring functions, `ADRP`/`LDR` pairs for globals. Confirm the field offsets in the functions you land in (e.g. `getPlayerPos` should read `x0 + 0x88`).
+**In-game scan (easiest).** On Windows, put the latest `albw-exefs` CI build in Downloads and double-click `tools\windows\find-link.bat`. Start BotW 1.0.0, load your save, and run in a straight line until the window says FOUND (about a minute). It writes a report to `docs/test-reports/` with the four values for `game_offsets.hpp`. How it works and its limits: [decision 0010](decisions/0010-in-game-player-scan.md).
 
-**Why not a Cheat Engine pointer scan?** Under Ryujinx the game's pointers hold *guest* addresses, while Cheat Engine sees *host* addresses, so a pointer scan for Link's position finds nothing useful. §1 still works for finding the floats themselves. A module-side scan (the module runs inside the game, where pointers are real) is the planned way to find the global without Ghidra; see the roadmap.
+**Static (Ghidra).** If the scan says NOT FOUND: In Ryujinx, right-click BotW > *Extract Data* > *ExeFS* and save it to a folder **outside this repo** (it's game code; never commit or upload it). Load `main` in Ghidra and use the method at the end of [decomp-mapping.md](research/decomp-mapping.md#finding-a-decomp-function-in-160), which works for any version: string references, neighbouring functions, `ADRP`/`LDR` pairs for globals. Confirm the field offsets in the functions you land in (e.g. `getPlayerPos` should read `x0 + 0x88`).
+
+**Why not a Cheat Engine pointer scan?** Under Ryujinx the game's pointers hold *guest* addresses, while Cheat Engine sees *host* addresses, so a pointer scan for Link's position finds nothing useful. §1 still works for finding the floats themselves. The module's own scan does the job instead, because inside the game pointers are real.
 
 Log what you find, with the 1.0.0 build ID (`2094F152836683A3632C6153FD84AB80`), in the offsets log.
 

@@ -14,3 +14,4 @@ Every significant technical choice gets a short record here: what we decided, wh
 | [0005](0005-gpl-v2-license.md) | GPLv2 for the whole repo | Accepted |
 | [0006](0006-config-file-on-sd-card.md) | Player settings from an INI file on the SD card | Accepted |
 | [0009](0009-target-botw-1-0-0.md) | Target BotW 1.0.0 (no update) instead of 1.6.0 | Accepted |
+| [0010](0010-in-game-player-scan.md) | Find the 1.0.0 player pointer with an in-game scan | Accepted |
