@@ -11,6 +11,7 @@
 #include "program/albw_config.hpp"
 #include "program/game/game_offsets.hpp"
 #include "program/game/game_version.hpp"
+#include "program/game/player_scan_runner.hpp"
 #include "program/net/client.hpp"
 
 namespace {
@@ -72,6 +73,15 @@ extern "C" void exl_main(void* x0, void* x1) {
         Logging.Log(supported ? "[albw] no player offsets yet, sending test pattern"
                               : "[albw] unsupported game version, sending test pattern");
         client.EnableTestPattern();
+    }
+
+    /* The scan only reads, through checked reads, so it also runs on 1.6.0,
+       where the answer is already known and can check the scanner itself. */
+    if constexpr (albw::config::RunPlayerScan) {
+        if (albw::game::GetGameVersion() != albw::game::GameVersion::Unknown)
+            albw::game::StartPlayerScan();
+        else
+            Logging.Log("[albw] scan: skipped, unrecognised game build");
     }
 
     client.Start();
