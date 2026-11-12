@@ -36,6 +36,11 @@ namespace albw::config {
     /* How often to send our state, in packets per second. */
     constexpr int SendRateHz = 20;
 
+    /* Search the game's memory for the pointer to Link's position and log what
+       it finds (game/player_scan.hpp, decision 0010). Read-only. Turn off once
+       the 1.0.0 offsets are in game_offsets.hpp. */
+    constexpr bool RunPlayerScan = true;
+
     /* While game offsets aren't filled in yet (see game_offsets.hpp), send a fake
        player walking in a circle so the network path can be tested end to end. */
     constexpr bool SendTestPatternWithoutOffsets = true;

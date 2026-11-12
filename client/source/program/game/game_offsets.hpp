@@ -3,7 +3,9 @@
 #include <common.hpp>
 
 /*
- * Offsets into BotW's main executable, Switch version 1.6.0.
+ * Offsets into BotW's main executable, Switch version 1.0.0 (no update;
+ * build ID 2094F152836683A3632C6153FD84AB80, decision 0009). They are only
+ * used when game_version.cpp confirms that build at startup.
  *
  * All values are offsets from the start of the main module (what Ghidra shows
  * as the address minus the image base), NOT raw addresses from Cheat Engine,

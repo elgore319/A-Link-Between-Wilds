@@ -7,7 +7,7 @@
 LOAD_KIND := Module
 
 # Program you're targetting. Used to determine where to deploy your files.
-# Breath of the Wild (Switch). Target game version: 1.6.0.
+# Breath of the Wild (Switch). Target game version: 1.0.0, no update (decision 0009).
 PROGRAM_ID := 01007ef00011e000
 
 # Optional path to copy the final ELF to, for convenience.

@@ -14,6 +14,11 @@
     paper trail. Commit it on a branch like any other change.
 
 .EXAMPLE
+    # Find where 1.0.0 keeps Link's position (find-link.bat runs this): no server,
+    # waits up to 10 minutes for the module's "scan RESULT" line.
+    .\tools\windows\test-m1.ps1 -Scan
+
+.EXAMPLE
     # Simplest: newest albw-exefs*.zip from Downloads, you start the game yourself.
     .\tools\windows\test-m1.ps1
 
@@ -51,13 +56,21 @@ param(
     [switch]$InstallOnly,
 
     # Remove the installed module and stop.
-    [switch]$Uninstall
+    [switch]$Uninstall,
+
+    # Player scan mode (decision 0010): don't start the server, show the module's
+    # scan progress live and wait for its RESULT line instead of a server join.
+    [switch]$Scan
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $TitleId  = '01007ef00011e000'
+if ($Scan) {
+    $NoServer = $true
+    if (-not $PSBoundParameters.ContainsKey('WaitSeconds')) { $WaitSeconds = 600 }
+}
 $ModName  = 'albw'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $ModDir   = Join-Path $RyujinxDir "mods\contents\$TitleId\$ModName\exefs"
@@ -175,6 +188,13 @@ if ($RyujinxExe -and $GamePath) {
 } else {
     Write-Step 'Start Breath of the Wild in Ryujinx now.'
 }
+if ($Scan) {
+    Write-Host ''
+    Write-Host '    1. Load your save and wait until you can move Link.' -ForegroundColor White
+    Write-Host '    2. Run (or ride, or glide) in a straight line for about 30 seconds.' -ForegroundColor White
+    Write-Host '    3. Keep going until this window says FOUND. Progress shows below.' -ForegroundColor White
+    Write-Host ''
+}
 
 # --- 6. watch the logs ---------------------------------------------------------
 function Get-RyujinxLog {
@@ -194,19 +214,42 @@ function Read-Shared([string]$path) {
 
 Write-Step "Watching logs for up to $WaitSeconds s (Ctrl+C to stop early)"
 $deadline = (Get-Date).AddSeconds($WaitSeconds)
-$ryuLog = $null; $albwLines = @(); $problemLines = @(); $serverText = ''
+$ryuLog = $null; $albwLines = @(); $problemLines = @(); $serverText = ''; $appLine = ''
+$scanShown = 0
 while ((Get-Date) -lt $deadline) {
     $ryuLog = Get-RyujinxLog
     if ($ryuLog) {
         $lines = (Read-Shared $ryuLog.FullName) -split "`r?`n"
         $albwLines    = @($lines | Where-Object { $_ -match '\[albw' })
         $problemLines = @($lines | Where-Object { $_ -match '(?i)unresolved|subsdk9|albw.*(abort|fail)|Unhandled exception|InvalidAccess' } | Select-Object -First 40)
+        # Ryujinx names the game and its version when it starts it, e.g. "Application Loaded: ... v1.0.0 [01007EF00011E000]".
+        $appLine = @($lines | Where-Object { $_ -match '(?i)Application Loaded' } | Select-Object -Last 1) -join ''
     }
     if (Test-Path $serverLog) { $serverText = Read-Shared $serverLog }
+    if ($Scan) {
+        $scanNow = @($albwLines | Where-Object { $_ -match '\] scan' })
+        for ($i = $scanShown; $i -lt $scanNow.Count; $i++) {
+            Write-Host ('    ' + ($scanNow[$i] -replace '^.*\[albw\] ', ''))
+        }
+        $scanShown = $scanNow.Count
+        if ($albwLines -match 'scan (RESULT|: skipped)') { break }
+        Start-Sleep -Seconds 3
+        continue
+    }
     if (($albwLines -match 'joined as player') -or ($serverText -match 'joined from')) { Start-Sleep -Seconds 5; break }
     Start-Sleep -Seconds 3
 }
 if (Test-Path $serverLog) { $serverText = Read-Shared $serverLog }
+
+# --- game version ----------------------------------------------------------------
+# The mod only supports BotW 1.0.0 with no update (docs/decisions/0009). Ryujinx's own
+# line says what it ran; the module's line says what build ID it found in memory.
+$ryuVersion = if ($appLine -match '\bv(\d+\.\d+\.\d+)') { $Matches[1] } else { 'unknown' }
+$modVersionLine = @($albwLines | Where-Object { $_ -match 'game (version|build id)' } | Select-Object -First 1) -join ''
+$modVersionOk = $modVersionLine -match 'version 1\.0\.0 .*supported' -and $modVersionLine -notmatch 'NOT supported'
+if ($ryuVersion -ne 'unknown' -and $ryuVersion -ne '1.0.0') {
+    Write-Warn "Ryujinx ran BotW v$ryuVersion. This mod needs v1.0.0: right-click BotW > Manage Title Updates > No Update."
+}
 
 # --- verdict -------------------------------------------------------------------
 $checks = [ordered]@{
@@ -215,10 +258,34 @@ $checks = [ordered]@{
     'HELLO sent'              = [bool]($albwLines -match 'sent HELLO')
     'Joined (module log)'     = [bool]($albwLines -match 'joined as player')
     'Joined (server log)'     = [bool]($serverText -match 'joined from')
+    'Game is 1.0.0 (module)'  = [bool]$modVersionOk
 }
-$joined = $checks['Joined (module log)'] -or $checks['Joined (server log)']
-if ($joined) {
+$scanResult = @($albwLines | Where-Object { $_ -match 'scan RESULT' } | Select-Object -Last 1) -join ''
+if ($Scan) {
+    $checks.Remove('HELLO sent'); $checks.Remove('Joined (module log)'); $checks.Remove('Joined (server log)')
+    $checks['Scan started'] = [bool]($albwLines -match 'scan: will search')
+    $checks['Scan found Link'] = [bool]$scanResult
+}
+$joined = $false
+if (-not $Scan) { $joined = $checks['Joined (module log)'] -or $checks['Joined (server log)'] }
+if ($Scan -and $scanResult) {
+    $joined = $true   # green verdict colour
+    $verdict = 'FOUND: ' + ($scanResult -replace '^.*scan RESULT: ', '') + '. Send this report to Claude.'
+} elseif ($Scan -and ($albwLines -match 'scan: skipped')) {
+    $verdict = "NOT RUN: the module didn't recognise this game version (Ryujinx ran v$ryuVersion), so it didn't scan. It needs BotW 1.0.0 with no update."
+} elseif ($Scan -and ($albwLines -match 'scan round \d+: \d+ chain')) {
+    $verdict = "NOT YET: it found possible spots but Link didn't move far enough in time. Rerun and run in a straight line for longer (no fast travel)."
+} elseif ($Scan -and ($albwLines -match 'scan round')) {
+    $verdict = 'NOT FOUND: the scan ran but saw nothing that looks like Link. Were you in the world (past the title screen)? If yes, send this report to Claude: 1.0.0 is laid out differently than expected.'
+} elseif ($Scan -and $checks['Module loaded']) {
+    $verdict = 'NO SCAN: the module loaded but never started scanning. Send this report to Claude.'
+} elseif ($Scan) {
+    $verdict = 'FAIL: no [albw] lines. Either the module did not load, or guest logs are off.'
+} elseif ($joined) {
     $verdict = 'PASS: the module loaded and joined the server.'
+    if (-not $modVersionOk) {
+        $verdict += " But the module did not confirm BotW 1.0.0 (Ryujinx ran v$ryuVersion), so it won't read the game; remove the update in Ryujinx and rerun."
+    }
 } elseif ($checks['HELLO sent']) {
     $verdict = 'PARTIAL: module is sending HELLO but never joined. Check the server is running, the IP/port in albw_config.hpp, and the firewall.'
 } elseif ($checks['Module loaded']) {
@@ -238,7 +305,7 @@ try { $branch = (& git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null) } catch
 
 $fence = '```'
 $report = @"
-# M1 in-game test: $($Started.ToString('yyyy-MM-dd HH:mm'))
+# $(if ($Scan) { 'Player scan' } else { 'M1 in-game test' }): $($Started.ToString('yyyy-MM-dd HH:mm'))
 
 **Verdict:** $verdict
 
@@ -253,6 +320,8 @@ $(($checks.GetEnumerator() | ForEach-Object { "| $($_.Key) | $(if ($_.Value) { '
 - Guest logs: $guestLogNote
 - Ryujinx log: ``$(if ($ryuLog) { $ryuLog.Name } else { 'none found' })``
 - Server: $(if ($NoServer) { 'not started by script' } else { "port $Port" })
+- Game version (Ryujinx): $ryuVersion
+- Game version (module): $(if ($modVersionLine) { "``$($modVersionLine.Trim())``" } else { 'no line logged' })
 
 ## [albw] lines from Ryujinx
 $fence
@@ -273,7 +342,7 @@ $fence
 <!-- Add anything you observed in-game: crashes, stutter, what you did. -->
 "@
 
-$reportPath = Join-Path $reportDir "$Stamp-m1.md"
+$reportPath = Join-Path $reportDir "$Stamp-$(if ($Scan) { 'scan' } else { 'm1' }).md"
 [System.IO.File]::WriteAllText($reportPath, $report)
 
 Write-Host ''

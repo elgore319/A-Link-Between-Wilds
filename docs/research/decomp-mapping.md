@@ -1,5 +1,7 @@
 # Using the BotW decomp to find 1.6.0 offsets
 
+> **2026-10-26: we now target 1.0.0, not 1.6.0** ([decision 0009](../decisions/0009-target-botw-1-0-0.md)). Everything below was written for 1.6.0. The global addresses (`main+0x2CA1140` etc.) are wrong on 1.0.0. The struct field offsets (`+0x60`, `+0x398`) match on 1.5.0 and 1.6.0 but are unconfirmed on 1.0.0, which predates the DLC and could lay `Actor` out differently. The porting method at the end of this page applies to 1.0.0 as is. Status of the 1.0.0 port: [offsets-log.md](offsets-log.md).
+
 **Date:** 2026-10-05. **Status:** research. Nothing here is confirmed in-game yet. Every value is logged as 🔍 in [offsets-log.md](offsets-log.md) until someone verifies it.
 
 ## Summary
