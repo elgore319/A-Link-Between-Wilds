@@ -43,6 +43,9 @@ jobs:
           g++ -std=c++20 -Wall -Wextra -Werror -fsanitize=address,undefined -g \
               -I../source test_build_id.cpp -o test_build_id
           ./test_build_id
+          g++ -std=c++20 -Wall -Wextra -Werror -fsanitize=address,undefined -g \
+              -I../source test_player_scan.cpp -o test_player_scan
+          ./test_player_scan
 
   client:
     name: Switch module build
