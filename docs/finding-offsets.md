@@ -51,4 +51,4 @@ Log what you find, with the 1.0.0 build ID (`2094F152836683A3632C6153FD84AB80`),
 ## When it crashes
 - Note what you changed and the crash in the offsets log.
 - Ryujinx's log shows the faulting PC; subtract the module base to get the offset and check it in Ghidra.
-- If the module fails to load at all with an unresolved symbol, see the note at the top of `client/source/program/net/nn_socket.hpp`.
+- If the log says `[albw] networking off: the game doesn't provide ...`, the socket lookup missed (decision 0011). The lines after it list every `nn::socket` name the game exports: add the matching one to the list in `client/source/program/net/socket_api.cpp`.

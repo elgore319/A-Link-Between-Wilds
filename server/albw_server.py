@@ -153,6 +153,16 @@ class RelayServer(asyncio.DatagramProtocol):
             self.remove_player(pid, "timed out")
 
 
+IDLE_REMINDER_SECONDS = 60
+
+
+def idle_message(seconds: int) -> str:
+    """What the server prints while it has been empty for `seconds`."""
+    return (f"still waiting: nobody has joined in {seconds // 60} min. If the game is running, check that "
+            "Ryujinx guest logs show '[albw] socket ready' and that server_ip/server_port in config.ini "
+            "point here.")
+
+
 async def main() -> None:
     ap = argparse.ArgumentParser(description="A Link Between Wilds relay server")
     ap.add_argument("--host", default="0.0.0.0", help="address to listen on (default: all interfaces)")
@@ -166,13 +176,26 @@ async def main() -> None:
 
     loop = asyncio.get_running_loop()
     server = RelayServer(timeout=args.timeout)
-    transport, _ = await loop.create_datagram_endpoint(lambda: server, local_addr=(args.host, args.port))
+    try:
+        transport, _ = await loop.create_datagram_endpoint(lambda: server, local_addr=(args.host, args.port))
+    except OSError as e:
+        raise SystemExit(
+            f"Can't listen on port {args.port}: {e.strerror or e}.\n"
+            "Another program is using it, most likely an ALBW server that is already running "
+            "(look for another 'ALBW server' window). Close it, or start this one with --port <another number> "
+            "and set the same server_port in config.ini.") from None
     log.info("A Link Between Wilds server listening on %s:%d (max %d players)",
              args.host, args.port, p.MAX_PLAYERS)
+    log.info("waiting for players; start BotW with the mod installed (Ctrl+C to stop)")
+    idle = 0
     try:
         while True:
             await asyncio.sleep(1.0)
             server.reap()
+            # A reminder while nobody is connected, so a silent window doesn't look frozen.
+            idle = idle + 1 if not server.players else 0
+            if idle and idle % IDLE_REMINDER_SECONDS == 0:
+                log.info(idle_message(idle))
     finally:
         transport.close()
 

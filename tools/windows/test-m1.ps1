@@ -60,7 +60,11 @@ param(
 
     # Player scan mode (decision 0010): don't start the server, show the module's
     # scan progress live and wait for its RESULT line instead of a server join.
-    [switch]$Scan
+    [switch]$Scan,
+
+    # Answer "yes" to the setup fixes the script offers (turning off a BotW title
+    # update, re-enabling the mod in Ryujinx) instead of asking.
+    [switch]$Yes
 )
 
 Set-StrictMode -Version 2.0
@@ -79,6 +83,26 @@ $Started  = Get-Date
 
 function Write-Step([string]$msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
 function Write-Warn([string]$msg) { Write-Host "    $msg" -ForegroundColor Yellow }
+function Write-Ok([string]$msg)   { Write-Host "    $msg" -ForegroundColor Green }
+
+# Asks a yes/no question; Enter on its own means yes. -Yes answers for you.
+function Confirm-Fix([string]$question) {
+    if ($Yes) { return $true }
+    $answer = Read-Host "    $question [Y/n]"
+    return ($answer -eq '' -or $answer -match '^(?i)y')
+}
+
+# Ryujinx keeps its log open; read with sharing so we don't block or fail.
+function Read-Shared([string]$path) {
+    $fs = [System.IO.File]::Open($path, 'Open', 'Read', 'ReadWrite')
+    try { (New-Object System.IO.StreamReader($fs)).ReadToEnd() } finally { $fs.Dispose() }
+}
+
+# Saves JSON the way Ryujinx reads it, keeping a one-time backup of the original.
+function Save-JsonWithBackup([string]$path, $object) {
+    if (-not (Test-Path "$path.albw-backup")) { Copy-Item $path "$path.albw-backup" -Force }
+    [System.IO.File]::WriteAllText($path, ($object | ConvertTo-Json -Depth 10))
+}
 
 # --- uninstall -----------------------------------------------------------------
 if ($Uninstall) {
@@ -131,10 +155,111 @@ if (-not (Test-Path $RyujinxDir)) {
 New-Item -ItemType Directory -Force -Path $ModDir | Out-Null
 Copy-Item $subsdk.FullName (Join-Path $ModDir 'subsdk9') -Force
 Copy-Item $npdm.FullName   (Join-Path $ModDir 'main.npdm') -Force
+$ryuProcs   = @(Get-Process -Name 'Ryujinx*' -ErrorAction SilentlyContinue)
+$ryuRunning = $ryuProcs.Count -gt 0
+
+# --- 2b. pre-flight checks -------------------------------------------------------
+# Each of these has stopped a first test somewhere before: catch them here, where
+# they're cheap to fix, instead of after a game boot. Notes go into the report.
+Write-Step 'Checking Ryujinx setup'
+$preflight = New-Object System.Collections.Generic.List[string]
+$gameDir = Join-Path $RyujinxDir "games\$TitleId"
+
+# config.ini: the module works without it (built-in defaults), but put the
+# documented starting file in place so there's one obvious file to edit later.
+$sdConfig = Join-Path $RyujinxDir 'sdcard\albw\config.ini'
+$repoConfig = Join-Path $RepoRoot 'client\sdcard\albw\config.ini'
+if (Test-Path $sdConfig) {
+    $preflight.Add("config.ini: present at ``$sdConfig``")
+} elseif (Test-Path $repoConfig) {
+    New-Item -ItemType Directory -Force -Path (Split-Path $sdConfig -Parent) | Out-Null
+    Copy-Item $repoConfig $sdConfig
+    Write-Ok "Copied the default config.ini to $sdConfig"
+    $preflight.Add("config.ini: copied the default to ``$sdConfig``")
+} else {
+    $preflight.Add('config.ini: none (module uses built-in settings)')
+}
+
+# Title update: the mod only works on 1.0.0. Ryujinx remembers the chosen update
+# in games\<title id>\updates.json ("selected" is empty for "No Update").
+$updatesJson = Join-Path $gameDir 'updates.json'
+if (Test-Path $updatesJson) {
+    try {
+        $updates = Get-Content $updatesJson -Raw | ConvertFrom-Json
+        $selected = if ($updates.PSObject.Properties['selected']) { [string]$updates.selected } else { '' }
+        if ($selected) {
+            Write-Warn "Ryujinx is set to run BotW with an update: $(Split-Path $selected -Leaf)"
+            Write-Warn 'The mod needs the base game (1.0.0, no update).'
+            if ($ryuRunning) {
+                Write-Warn 'Close Ryujinx and rerun to fix this automatically, or right-click BotW > Manage Title Updates > No Update.'
+                $preflight.Add("Title update: **an update is selected** ($(Split-Path $selected -Leaf)); Ryujinx was running, not changed")
+            } elseif (Confirm-Fix 'Switch BotW to "No Update" for this test? You can switch back in Manage Title Updates.') {
+                $updates.selected = ''
+                Save-JsonWithBackup $updatesJson $updates
+                Write-Ok 'BotW will start without the update (backup: updates.json.albw-backup).'
+                $preflight.Add("Title update: was $(Split-Path $selected -Leaf), switched to No Update by this script")
+            } else {
+                $preflight.Add("Title update: **an update is selected** ($(Split-Path $selected -Leaf)), left as is")
+            }
+        } else {
+            $preflight.Add('Title update: none selected (good)')
+        }
+    } catch {
+        $preflight.Add("Title update: couldn't read updates.json ($($_.Exception.Message))")
+    }
+} else {
+    $preflight.Add('Title update: none set up in Ryujinx (good)')
+}
+
+# Mod switched off in Ryujinx's mod manager (games\<title id>\mods.json).
+$modsJson = Join-Path $gameDir 'mods.json'
+if (Test-Path $modsJson) {
+    try {
+        $mods = Get-Content $modsJson -Raw | ConvertFrom-Json
+        $ours = @($mods.mods | Where-Object { $_.path -like "*\$ModName" -or $_.path -like "*\$ModName\*" -or $_.name -eq $ModName })
+        $off  = @($ours | Where-Object { -not $_.enabled })
+        if ($off.Count -gt 0) {
+            Write-Warn 'The mod is switched off in Ryujinx (right-click BotW > Manage Mods).'
+            if ($ryuRunning) {
+                Write-Warn 'Close Ryujinx and rerun to fix this automatically, or tick it in Manage Mods.'
+                $preflight.Add('Mod enabled in Ryujinx: **no**; Ryujinx was running, not changed')
+            } elseif (Confirm-Fix 'Switch the mod back on?') {
+                foreach ($m in $off) { $m.enabled = $true }
+                Save-JsonWithBackup $modsJson $mods
+                Write-Ok 'Mod switched on.'
+                $preflight.Add('Mod enabled in Ryujinx: was off, switched on by this script')
+            } else {
+                $preflight.Add('Mod enabled in Ryujinx: **no**, left off')
+            }
+        } else {
+            $preflight.Add('Mod enabled in Ryujinx: yes')
+        }
+    } catch {
+        $preflight.Add("Mod enabled in Ryujinx: couldn't read mods.json ($($_.Exception.Message))")
+    }
+}
+
+# Other code mods for BotW. Only one subsdk9 can load; others may also patch main.
+$modsRoot = Split-Path (Split-Path $ModDir -Parent) -Parent
+$others = @(Get-ChildItem $modsRoot -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -ne $ModName -and (Test-Path (Join-Path $_.FullName 'exefs')) })
+if ($others.Count -gt 0) {
+    $names = ($others | ForEach-Object { $_.Name }) -join ', '
+    $clash = @($others | Where-Object { Test-Path (Join-Path $_.FullName 'exefs\subsdk9') })
+    if ($clash.Count -gt 0) {
+        Write-Warn "Another mod also installs subsdk9 and will clash: $(($clash | ForEach-Object { $_.Name }) -join ', '). Turn it off in Manage Mods for this test."
+    } else {
+        Write-Warn "Other code (exefs) mods are installed for BotW: $names. If anything goes wrong, turn them off and retry."
+    }
+    $preflight.Add("Other exefs mods: $names")
+} else {
+    $preflight.Add('Other exefs mods: none')
+}
+foreach ($line in $preflight) { Write-Host "    $line" }
+
 if ($InstallOnly) { Write-Step 'Installed. Done.'; return }
 
 # --- 3. enable guest logs ------------------------------------------------------
-$ryuRunning = @(Get-Process -Name 'Ryujinx*' -ErrorAction SilentlyContinue).Count -gt 0
 $configPath = Join-Path $RyujinxDir 'Config.json'
 $guestLogNote = ''
 if (Test-Path $configPath) {
@@ -163,6 +288,18 @@ $reportDir = Join-Path $RepoRoot 'docs\test-reports'
 New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
 $serverLog = Join-Path $env:TEMP "albw-server-$Stamp.log"
 
+$serverNote = if ($NoServer) { 'not started by script' } else { "port $Port" }
+if (-not $NoServer) {
+    # A server left open from an earlier run already owns the port: use it.
+    $portBusy = $false
+    try { $portBusy = @(Get-NetUDPEndpoint -LocalPort $Port -ErrorAction Stop).Count -gt 0 } catch { }
+    if ($portBusy) {
+        Write-Step "Port $Port is already in use, probably by the ALBW server from an earlier run. Using that one."
+        Write-Warn "If the test fails, close the old 'ALBW server' window and rerun."
+        $NoServer = $true
+        $serverNote = "port $Port already in use; assumed an earlier ALBW server window"
+    }
+}
 if (-not $NoServer) {
     $python = $null
     foreach ($cand in @('py', 'python', 'python3')) {
@@ -174,7 +311,14 @@ if (-not $NoServer) {
     $serverScript = Join-Path $RepoRoot 'server\albw_server.py'
     $cmd = "`$host.UI.RawUI.WindowTitle = 'ALBW server'; & $python -u '$serverScript' --port $Port 2>&1 | Tee-Object -FilePath '$serverLog'"
     Start-Process powershell -ArgumentList '-NoExit', '-NoProfile', '-Command', $cmd | Out-Null
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 3
+    $startText = if (Test-Path $serverLog) { Read-Shared $serverLog } else { '' }
+    if ($startText -match 'listening on') {
+        Write-Ok 'Server is up. Windows may ask whether Python can use the network: click Allow.'
+    } else {
+        Write-Warn "The server hasn't said it's listening yet. Check the 'ALBW server' window for an error."
+        if ($startText) { Write-Warn (($startText.Trim() -split "`r?`n" | Select-Object -Last 3) -join ' | ') }
+    }
 }
 
 # --- 5. launch the game --------------------------------------------------------
@@ -198,24 +342,31 @@ if ($Scan) {
 
 # --- 6. watch the logs ---------------------------------------------------------
 function Get-RyujinxLog {
+    # Ryujinx writes Logs\ either in its data folder or next to Ryujinx.exe,
+    # depending on version and on portable mode, so look in every candidate.
     $dirs = @((Join-Path $RyujinxDir 'Logs'))
-    if ($RyujinxExe) { $dirs += (Join-Path (Split-Path $RyujinxExe -Parent) 'Logs') }
+    $exes = @()
+    if ($RyujinxExe) { $exes += $RyujinxExe }
+    foreach ($proc in @(Get-Process -Name 'Ryujinx*' -ErrorAction SilentlyContinue)) {
+        try { if ($proc.Path) { $exes += $proc.Path } } catch { }
+    }
+    foreach ($exe in $exes) {
+        $exeDir = Split-Path $exe -Parent
+        $dirs += (Join-Path $exeDir 'Logs')
+        $dirs += (Join-Path $exeDir 'portable\Logs')
+    }
+    $dirs = @($dirs | Select-Object -Unique)
     $logs = foreach ($d in $dirs) {
         if (Test-Path $d) { Get-ChildItem $d -Filter '*.log' -File | Where-Object { $_.LastWriteTime -ge $Started.AddSeconds(-5) } }
     }
     return $logs | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 }
 
-function Read-Shared([string]$path) {
-    # Ryujinx keeps its log open; read with sharing so we don't block or fail.
-    $fs = [System.IO.File]::Open($path, 'Open', 'Read', 'ReadWrite')
-    try { (New-Object System.IO.StreamReader($fs)).ReadToEnd() } finally { $fs.Dispose() }
-}
-
 Write-Step "Watching logs for up to $WaitSeconds s (Ctrl+C to stop early)"
 $deadline = (Get-Date).AddSeconds($WaitSeconds)
 $ryuLog = $null; $albwLines = @(); $problemLines = @(); $serverText = ''; $appLine = ''
 $scanShown = 0
+$joinedAt = $null
 while ((Get-Date) -lt $deadline) {
     $ryuLog = Get-RyujinxLog
     if ($ryuLog) {
@@ -236,7 +387,23 @@ while ((Get-Date) -lt $deadline) {
         Start-Sleep -Seconds 3
         continue
     }
-    if (($albwLines -match 'joined as player') -or ($serverText -match 'joined from')) { Start-Sleep -Seconds 5; break }
+    # Show the module's progress as it happens, so a stall is visible.
+    for ($i = $scanShown; $i -lt $albwLines.Count; $i++) {
+        Write-Host ('    ' + ($albwLines[$i] -replace '^.*\[albw\] ', ''))
+    }
+    $scanShown = $albwLines.Count
+    if ($albwLines -match 'networking (off|stopped)') { break }
+    if ($problemLines -match '(?i)Unhandled exception|InvalidAccess') { Start-Sleep -Seconds 3; break }
+    # After joining, keep watching until the module's 30-second heartbeat shows it
+    # is still running (or ~45 s pass), so a crash just after joining is caught too.
+    if (($albwLines -match 'joined as player') -or ($serverText -match 'joined from')) {
+        if (-not $joinedAt) {
+            $joinedAt = Get-Date
+            Write-Ok 'Joined! Watching for another 30-45 seconds to make sure the game stays up...'
+        }
+        if ($albwLines -match '\] status: player') { break }
+        if (((Get-Date) - $joinedAt).TotalSeconds -gt 45) { break }
+    }
     Start-Sleep -Seconds 3
 }
 if (Test-Path $serverLog) { $serverText = Read-Shared $serverLog }
@@ -259,13 +426,18 @@ $checks = [ordered]@{
     'Joined (module log)'     = [bool]($albwLines -match 'joined as player')
     'Joined (server log)'     = [bool]($serverText -match 'joined from')
     'Game is 1.0.0 (module)'  = [bool]$modVersionOk
+    'Still running (heartbeat)' = [bool]($albwLines -match '\] status: player')
 }
 $scanResult = @($albwLines | Where-Object { $_ -match 'scan RESULT' } | Select-Object -Last 1) -join ''
 if ($Scan) {
     $checks.Remove('HELLO sent'); $checks.Remove('Joined (module log)'); $checks.Remove('Joined (server log)')
+    $checks.Remove('Still running (heartbeat)')
     $checks['Scan started'] = [bool]($albwLines -match 'scan: will search')
     $checks['Scan found Link'] = [bool]$scanResult
 }
+$crashLine = @($problemLines | Where-Object { $_ -match '(?i)Unhandled exception|InvalidAccess' } | Select-Object -First 1) -join ''
+$lastAlbw  = if ($albwLines.Count) { ($albwLines[-1] -replace '^.*\[albw\] ', '') } else { '' }
+$netOff    = @($albwLines | Where-Object { $_ -match 'networking off' } | Select-Object -First 1) -join ''
 $joined = $false
 if (-not $Scan) { $joined = $checks['Joined (module log)'] -or $checks['Joined (server log)'] }
 if ($Scan -and $scanResult) {
@@ -281,13 +453,19 @@ if ($Scan -and $scanResult) {
     $verdict = 'NO SCAN: the module loaded but never started scanning. Send this report to Claude.'
 } elseif ($Scan) {
     $verdict = 'FAIL: no [albw] lines. Either the module did not load, or guest logs are off.'
+} elseif ($crashLine) {
+    $when = if ($joined) { ' after joining the server' } elseif ($checks['Module loaded']) { ' after the module loaded' } else { '' }
+    $verdict = "CRASH: the game crashed$when. Last [albw] line: '$lastAlbw'. Send this report to Claude."
+    $joined = $false   # yellow verdict colour
+} elseif ($netOff) {
+    $verdict = 'NETWORK OFF: the module loaded and the game kept running, but it could not find the Switch socket functions it needs. Send this report to Claude: it lists the names the game does have.'
 } elseif ($joined) {
     $verdict = 'PASS: the module loaded and joined the server.'
     if (-not $modVersionOk) {
         $verdict += " But the module did not confirm BotW 1.0.0 (Ryujinx ran v$ryuVersion), so it won't read the game; remove the update in Ryujinx and rerun."
     }
 } elseif ($checks['HELLO sent']) {
-    $verdict = 'PARTIAL: module is sending HELLO but never joined. Check the server is running, the IP/port in albw_config.hpp, and the firewall.'
+    $verdict = 'PARTIAL: module is sending HELLO but never joined. Check the server window is open, server_ip/server_port in config.ini (sdcard\albw\config.ini in the Ryujinx folder), and, if the server is on another PC, its firewall.'
 } elseif ($checks['Module loaded']) {
     $verdict = 'PARTIAL: module loaded but networking failed. See the [albw] lines (socket errors) and any unresolved-symbol lines below.'
 } elseif ($problemLines.Count -gt 0) {
@@ -319,9 +497,12 @@ $(($checks.GetEnumerator() | ForEach-Object { "| $($_.Key) | $(if ($_.Value) { '
 - Installed to: ``$ModDir``
 - Guest logs: $guestLogNote
 - Ryujinx log: ``$(if ($ryuLog) { $ryuLog.Name } else { 'none found' })``
-- Server: $(if ($NoServer) { 'not started by script' } else { "port $Port" })
+- Server: $serverNote
 - Game version (Ryujinx): $ryuVersion
 - Game version (module): $(if ($modVersionLine) { "``$($modVersionLine.Trim())``" } else { 'no line logged' })
+
+## Pre-flight
+$(($preflight | ForEach-Object { "- $_" }) -join "`n")
 
 ## [albw] lines from Ryujinx
 $fence

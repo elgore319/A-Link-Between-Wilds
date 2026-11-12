@@ -202,5 +202,32 @@ class SocketTest(unittest.TestCase):
         self.assertEqual(asyncio.run(run()), (10.0, 20.0, 30.0))
 
 
+class StartupMessageTests(unittest.TestCase):
+    def test_port_in_use_gives_a_plain_message(self):
+        import socket
+        import sys
+        from unittest import mock
+
+        import albw_server
+
+        busy = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        busy.bind(("127.0.0.1", 0))
+        port = busy.getsockname()[1]
+        try:
+            argv = ["albw_server.py", "--host", "127.0.0.1", "--port", str(port)]
+            with mock.patch.object(sys, "argv", argv):
+                with self.assertRaises(SystemExit) as cm:
+                    asyncio.run(albw_server.main())
+        finally:
+            busy.close()
+        self.assertIn(f"Can't listen on port {port}", str(cm.exception.code))
+        self.assertIn("already running", str(cm.exception.code))
+
+    def test_idle_message_counts_minutes(self):
+        from albw_server import idle_message
+        self.assertIn("in 2 min", idle_message(120))
+        self.assertIn("config.ini", idle_message(60))
+
+
 if __name__ == "__main__":
     unittest.main()
