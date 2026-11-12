@@ -15,3 +15,4 @@ Every significant technical choice gets a short record here: what we decided, wh
 | [0006](0006-config-file-on-sd-card.md) | Player settings from an INI file on the SD card | Accepted |
 | [0009](0009-target-botw-1-0-0.md) | Target BotW 1.0.0 (no update) instead of 1.6.0 | Accepted |
 | [0010](0010-in-game-player-scan.md) | Find the 1.0.0 player pointer with an in-game scan | Accepted |
+| [0011](0011-look-up-socket-functions-at-runtime.md) | Look up socket functions at runtime instead of importing them | Accepted |

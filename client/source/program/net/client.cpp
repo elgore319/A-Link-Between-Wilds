@@ -3,6 +3,8 @@
 #include "lib.hpp"
 #include <nn/os.hpp>
 #include "nn_socket.hpp"
+#include "socket_api.hpp"
+#include "elf_symbols.hpp"
 #include "program/albw_config.hpp"
 #include "program/config/config_file.hpp"
 #include "program/loggers.hpp"
@@ -22,6 +24,7 @@ namespace albw::net {
         nn::os::ThreadType s_thread;
 
         Client s_client;
+        SocketApi s_api;
 
         void Sleep(s64 ms) { nn::os::SleepThread(nn::TimeSpan::FromMilliSeconds(ms)); }
 
@@ -75,14 +78,32 @@ namespace albw::net {
     }
 
     bool Client::OpenSocket() {
-        Result rc = nn::socket::Initialize(s_socket_pool, SocketPoolSize, SocketAllocPoolSize, SocketConcurrency);
-        /* A non-zero result can mean the game already initialized sockets; carry on and
-           let Socket() tell us whether networking actually works. */
-        Logging.Log("[albw] nn::socket::Initialize -> 0x%x", rc);
+        /* Step 1: find the socket functions in the game (decision 0011). If any is
+           missing we stop here, and the game carries on without networking. */
+        if (const char* missing = ResolveSocketApi(s_api)) {
+            Logging.Log("[albw] networking off: the game doesn't provide %s. The game keeps running; "
+                        "send the test report so the socket names can be fixed.", missing);
+            LogSocketExports();
+            return false;
+        }
 
-        m_fd = nn::socket::Socket(AfInet, SockDgram, IpProtoUdp);
+        /* Step 2: start the socket library. */
+        if (s_api.Initialize) {
+            Logging.Log("[albw] net step: initializing sockets");
+            Result rc = s_api.Initialize(s_socket_pool, SocketPoolSize, SocketAllocPoolSize, SocketConcurrency);
+            /* A non-zero result can mean the game already initialized sockets; carry on and
+               let Socket() tell us whether networking actually works. */
+            Logging.Log("[albw] nn::socket::Initialize -> 0x%x", rc);
+        } else {
+            Logging.Log("[albw] no nn::socket::Initialize(pool, ...) in this game; trying without it");
+        }
+
+        /* Step 3: open a UDP socket. */
+        Logging.Log("[albw] net step: opening UDP socket");
+        m_fd = s_api.Socket(AfInet, SockDgram, IpProtoUdp);
         if (m_fd < 0) {
-            Logging.Log("[albw] Socket() failed, errno %d", nn::socket::GetLastErrno());
+            Logging.Log("[albw] Socket() failed, errno %d", s_api.LastErrno());
+            LogSocketExports();
             return false;
         }
 
@@ -90,16 +111,17 @@ namespace albw::net {
         sockaddr_in addr = {};
         addr.sin_len = sizeof(addr);
         addr.sin_family = AfInet;
-        addr.sin_port = nn::socket::InetHtons(cfg.server_port);
-        if (nn::socket::InetAton(cfg.server_ip, &addr.sin_addr) == 0) {
-            Logging.Log("[albw] bad server IP '%s'", cfg.server_ip);
+        addr.sin_port = Htons(cfg.server_port);
+        if (!ParseIpv4(cfg.server_ip, &addr.sin_addr.s_addr)) {
+            Logging.Log("[albw] bad server IP '%s': use four numbers like 192.168.1.20 in config.ini", cfg.server_ip);
             return false;
         }
 
-        /* "Connecting" a UDP socket just fixes the destination, so Send/Recv only
-           talk to the server and packets from anyone else are dropped by the OS. */
-        if (nn::socket::Connect(m_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
-            Logging.Log("[albw] Connect() failed, errno %d", nn::socket::GetLastErrno());
+        /* Step 4: "connecting" a UDP socket just fixes the destination, so Send/Recv
+           only talk to the server and packets from anyone else are dropped by the OS. */
+        Logging.Log("[albw] net step: connecting to %s:%d", cfg.server_ip, cfg.server_port);
+        if (s_api.Connect(m_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+            Logging.Log("[albw] Connect() failed, errno %d", s_api.LastErrno());
             return false;
         }
         Logging.Log("[albw] socket ready, server %s:%d", cfg.server_ip, cfg.server_port);
@@ -107,7 +129,15 @@ namespace albw::net {
     }
 
     void Client::SendPacket(const void* data, size_t size) {
-        nn::socket::Send(m_fd, data, size, 0);
+        s64 n = s_api.Send(m_fd, data, size, 0);
+        if (n < 0) {
+            /* Log the first failure and then only every 200th, so a dead link
+               doesn't flood the log at 20 packets a second. */
+            if (m_send_errors++ % 200 == 0)
+                Logging.Log("[albw] Send() failed, errno %d (%u failure(s) so far)", s_api.LastErrno(), m_send_errors);
+        } else {
+            m_sent++;
+        }
     }
 
     void Client::Join() {
@@ -120,6 +150,12 @@ namespace albw::net {
             SendPacket(&hello, sizeof(hello));
             if (attempts++ % 10 == 0)
                 Logging.Log("[albw] sent HELLO (attempt %d)", attempts);
+            if (attempts == 10) {
+                const config::Settings& cfg = config::Get();
+                Logging.Log("[albw] no answer from the server at %s:%d after 10 tries. Is albw_server.py running, "
+                            "with the same port? If it's on another PC, check server_ip in config.ini and that "
+                            "PC's firewall. Still trying.", cfg.server_ip, cfg.server_port);
+            }
 
             /* Wait up to ~1s for WELCOME/REJECT, then resend. */
             for (int i = 0; i < 20 && m_status.load() == Status::Connecting; i++) {
@@ -132,9 +168,10 @@ namespace albw::net {
     void Client::Pump() {
         alignas(8) u8 buf[512];
         while (true) {
-            s64 n = nn::socket::Recv(m_fd, buf, sizeof(buf), MsgDontWait);
+            s64 n = s_api.Recv(m_fd, buf, sizeof(buf), MsgDontWait);
             if (n <= 0)
                 return;
+            m_received++;
             HandlePacket(buf, static_cast<size_t>(n));
         }
     }
@@ -159,7 +196,10 @@ namespace albw::net {
                 if (size != sizeof(albw_reject)) return;
                 albw_reject rej;
                 __builtin_memcpy(&rej, data, sizeof(rej));
-                Logging.Log("[albw] server rejected us (reason %d)", rej.reason);
+                Logging.Log("[albw] server rejected us (reason %d): %s", rej.reason,
+                            rej.reason == ALBW_REJECT_FULL ? "the server is full" :
+                            rej.reason == ALBW_REJECT_BAD_VERSION ? "the server is a different version; update the mod and the server together" :
+                            "unknown reason");
                 m_status = Status::Rejected;
                 break;
             }
@@ -237,6 +277,16 @@ namespace albw::net {
         SetLocalState(pos, 0.0f, ++m_test_tick);
     }
 
+    void Client::LogStatus() {
+        int others = 0;
+        Lock();
+        for (int i = 0; i < ALBW_MAX_PLAYERS; i++)
+            if (m_remote[i].active && i != m_my_id.load()) others++;
+        Unlock();
+        Logging.Log("[albw] status: player %d, %u packets sent, %u received, %d other player(s), %u send error(s)",
+                    m_my_id.load(), m_sent, m_received, others, m_send_errors);
+    }
+
     void Client::Run() {
         /* Give the game a few seconds to finish booting before we touch the network. */
         Sleep(5000);
@@ -247,6 +297,7 @@ namespace albw::net {
 
         if (!OpenSocket()) {
             m_status = Status::Error;
+            Logging.Log("[albw] networking stopped (see the lines above). The game is unaffected.");
             return;
         }
 
@@ -254,8 +305,12 @@ namespace albw::net {
         if (m_status.load() != Status::Connected)
             return;
 
+        Logging.Log("[albw] sending our position %d times a second%s", config::SendRateHz,
+                    m_test_pattern ? " (test pattern: a fake player walking in a circle)" : "");
+
         const s64 period_ms = 1000 / config::SendRateHz;
         int ticks_since_ping = 0;
+        int ticks_since_status = 0;
         while (true) {
             Pump();
             if (m_test_pattern)
@@ -268,6 +323,13 @@ namespace albw::net {
                 albw_init_header(&ping.hdr, ALBW_PKT_PING, static_cast<u16>(m_my_id.load()), ++m_seq);
                 ping.client_time = static_cast<u64>(nn::os::GetSystemTick().GetInt64Value());
                 SendPacket(&ping, sizeof(ping));
+            }
+
+            /* A heartbeat every 30 s: proves the module is still alive, and the test
+               script reads it to tell "still running" from "crashed". */
+            if (++ticks_since_status >= 30 * config::SendRateHz) {
+                ticks_since_status = 0;
+                LogStatus();
             }
             Sleep(period_ms);
         }

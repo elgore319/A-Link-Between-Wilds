@@ -62,12 +62,17 @@ namespace albw::net {
             void SendState();
             void SendPacket(const void* data, size_t size);
             void StepTestPattern();
+            void LogStatus();
 
             void Lock();
             void Unlock();
 
             s32 m_fd = -1;
             u32 m_seq = 0;
+            /* Counters for the status heartbeat; only touched by the net thread. */
+            u32 m_sent = 0;
+            u32 m_received = 0;
+            u32 m_send_errors = 0;
             std::atomic<Status> m_status { Status::Off };
             std::atomic<int>    m_my_id { ALBW_INVALID_PLAYER };
             bool  m_test_pattern = false;

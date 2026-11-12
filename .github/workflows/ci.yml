@@ -46,6 +46,47 @@ jobs:
           g++ -std=c++20 -Wall -Wextra -Werror -fsanitize=address,undefined -g \
               -I../source test_player_scan.cpp -o test_player_scan
           ./test_player_scan
+          g++ -std=c++20 -Wall -Wextra -Werror -fsanitize=address,undefined -g \
+              -I../source test_elf_symbols.cpp -o test_elf_symbols
+          ./test_elf_symbols
+
+  windows-scripts:
+    name: Windows scripts parse check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Parse every .ps1 with Windows PowerShell 5.1 (what Lee's PC runs)
+        shell: powershell
+        run: |
+          $failed = $false
+          Get-ChildItem tools -Recurse -Filter *.ps1 | ForEach-Object {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errors) | Out-Null
+            foreach ($e in $errors) {
+              Write-Host "::error file=$($_.FullName),line=$($e.Extent.StartLineNumber)::$($e.Message)"
+              $failed = $true
+            }
+            if (-not $errors) { Write-Host "ok  $($_.Name)" }
+          }
+          if ($failed) { exit 1 }
+      - name: Dry run of test-m1.ps1 -InstallOnly against a fake Ryujinx folder
+        shell: powershell
+        run: |
+          $ryu = Join-Path $env:RUNNER_TEMP 'Ryujinx'
+          $game = Join-Path $ryu 'games\01007ef00011e000'
+          New-Item -ItemType Directory -Force -Path $game | Out-Null
+          '{"selected":"C:\\Games\\BotW v1.6.0.nsp","paths":["C:\\Games\\BotW v1.6.0.nsp"]}' | Set-Content (Join-Path $game 'updates.json')
+          '{"mods":[{"name":"albw","path":"C:\\x\\mods\\contents\\01007ef00011e000\\albw","enabled":false}]}' | Set-Content (Join-Path $game 'mods.json')
+          $build = Join-Path $env:RUNNER_TEMP 'build'
+          New-Item -ItemType Directory -Force -Path $build | Out-Null
+          Set-Content (Join-Path $build 'subsdk9') 'fake'
+          Set-Content (Join-Path $build 'main.npdm') 'fake'
+          .\tools\windows\test-m1.ps1 -Artifact $build -RyujinxDir $ryu -InstallOnly -Yes
+          if (-not (Test-Path (Join-Path $ryu 'mods\contents\01007ef00011e000\albw\exefs\subsdk9'))) { throw 'module not installed' }
+          if (-not (Test-Path (Join-Path $ryu 'sdcard\albw\config.ini'))) { throw 'config.ini not copied' }
+          if ((Get-Content (Join-Path $game 'updates.json') -Raw | ConvertFrom-Json).selected) { throw 'update not switched off' }
+          if (-not ((Get-Content (Join-Path $game 'mods.json') -Raw | ConvertFrom-Json).mods[0].enabled)) { throw 'mod not re-enabled' }
+          Write-Host 'dry run ok'
 
   client:
     name: Switch module build

@@ -1,14 +1,11 @@
 #pragma once
 
 /*
- * Declarations for the Nintendo SDK socket API (nn::socket), resolved at load
- * time from the game's "sdk" module by exlaunch's dynamic linker.
+ * Socket types and constants for the Switch's nn::socket API.
  *
- * IMPORTANT: these must match the SDK's real signatures exactly, because the
- * C++ mangled names are what get looked up. These follow the older-SDK form
- * (global `struct sockaddr`) used by BotW-era games. If the module aborts on
- * load with an unresolved symbol, open the sdk module in Ghidra, search its
- * exports for "socket", and adjust the parameter types here to match.
+ * The functions themselves are not declared here: they are found at runtime by
+ * socket_api.cpp (decision 0011), so a wrong guess about their exact signature
+ * shows up as a log line instead of a crash.
  *
  * Layouts follow the Switch's BSD-derived stack: sockaddr has a length byte
  * before the family byte.
@@ -34,21 +31,6 @@ struct sockaddr_in {
     u8      sin_zero[8];
 };
 static_assert(sizeof(sockaddr_in) == sizeof(sockaddr));
-
-namespace nn::socket {
-    Result Initialize(void* pool, u64 pool_size, u64 alloc_pool_size, s32 concurrency_limit);
-    Result Finalize();
-
-    s32  Socket(s32 domain, s32 type, s32 protocol);
-    s32  Close(s32 fd);
-    s32  Connect(s32 fd, const sockaddr* address, u32 address_len);
-    s64  Send(s32 fd, const void* buffer, u64 length, s32 flags);
-    s64  Recv(s32 fd, void* buffer, u64 length, s32 flags);
-    s32  GetLastErrno();
-
-    u16  InetHtons(u16 host);
-    s32  InetAton(const char* str, in_addr* out);
-}
 
 namespace albw::net {
     /* BSD constants as used by the Switch. */
